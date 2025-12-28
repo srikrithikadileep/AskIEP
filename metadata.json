@@ -1,0 +1,8 @@
+{
+  "name": "AskIEP",
+  "description": "An end-to-end support system for parents navigating the IEP process, featuring AI-powered document analysis, meeting simulations, and compliance tracking.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
