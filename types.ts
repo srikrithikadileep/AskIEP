@@ -63,6 +63,28 @@ export interface CommLogEntry {
   follow_up_needed: boolean;
 }
 
+export interface BehaviorLog {
+  id: string;
+  child_id: string;
+  date: string;
+  time: string;
+  antecedent: string;
+  behavior: string;
+  consequence: string;
+  intensity: 1 | 2 | 3 | 4 | 5;
+  duration_minutes?: number;
+  notes?: string;
+}
+
+export interface LetterDraft {
+  id: string;
+  child_id: string;
+  title: string;
+  content: string;
+  type: string; // Made generic to support all templates
+  last_edited: string;
+}
+
 export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -78,6 +100,8 @@ export type ViewType =
   | 'prep' 
   | 'compliance' 
   | 'progress'
+  | 'behavior'
+  | 'letters'
   | 'comms'
   | 'legal' 
   | 'resources' 

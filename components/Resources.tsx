@@ -74,11 +74,11 @@ const Resources: React.FC = () => {
       {/* Featured Articles / Quick Start */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { icon: ShieldAlert, title: "Your IDEA Rights", tag: "Must Read", color: "bg-amber-500" },
-          { icon: MessageCircle, title: "Meeting Scripts", tag: "Advocacy", color: "bg-blue-500" },
-          { icon: Video, title: "Webinar Series", tag: "Training", color: "bg-purple-500" }
+          { icon: ShieldAlert, title: "Your IDEA Rights", tag: "Must Read", color: "bg-amber-500", url: "https://sites.ed.gov/idea/parents-families/" },
+          { icon: MessageCircle, title: "Meeting Scripts", tag: "Advocacy", color: "bg-blue-500", url: "https://www.wrightslaw.com/info/advo.index.htm" },
+          { icon: Video, title: "Webinar Series", tag: "Training", color: "bg-purple-500", url: "https://www.copaa.org/page/webinars" }
         ].map((item, i) => (
-          <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all group cursor-pointer">
+          <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all group cursor-pointer block">
             <div className="flex justify-between items-start mb-4">
               <div className="p-3 bg-slate-50 rounded-2xl group-hover:bg-indigo-50 transition-colors">
                 <item.icon className="w-6 h-6 text-slate-400 group-hover:text-indigo-600" />
@@ -91,7 +91,7 @@ const Resources: React.FC = () => {
             <p className="text-slate-400 text-xs mt-1 font-bold flex items-center gap-1">
               Explore Guide <ArrowRight className="w-3 h-3" />
             </p>
-          </div>
+          </a>
         ))}
       </div>
 
@@ -139,9 +139,14 @@ const Resources: React.FC = () => {
             to help you navigate your specific state's laws.
           </p>
         </div>
-        <button className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center gap-2 shrink-0">
+        <a 
+          href="https://www.parentcenterhub.org/find-your-center/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+        >
           Find Your State PTI <Search className="w-5 h-5" />
-        </button>
+        </a>
       </div>
     </div>
   );

@@ -20,6 +20,7 @@ const CommLog: React.FC<CommLogProps> = ({ childId }) => {
     summary: '',
     followUpNeeded: false
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadComms();
@@ -33,14 +34,23 @@ const CommLog: React.FC<CommLogProps> = ({ childId }) => {
     finally { setIsLoading(false); }
   };
 
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.contactName.trim()) newErrors.contactName = "Contact name required";
+    if (!formData.summary.trim()) newErrors.summary = "Summary required";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.contactName || !formData.summary) return;
+    if (!validate()) return;
     try {
       await api.addCommLog({ ...formData, childId });
       loadComms();
       setShowForm(false);
       setFormData({ date: new Date().toISOString().split('T')[0], contactName: '', method: 'Email', summary: '', followUpNeeded: false });
+      setErrors({});
     } catch (e) { alert("Failed to save."); }
   };
 
@@ -57,7 +67,7 @@ const CommLog: React.FC<CommLogProps> = ({ childId }) => {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Communication Log</h2>
+          <h2 className="text-2xl font-bold text-slate-900">Contact Log</h2>
           <p className="text-slate-500">Maintain a thorough "paper trail" of all interactions with the school team.</p>
         </div>
         <button
@@ -83,11 +93,12 @@ const CommLog: React.FC<CommLogProps> = ({ childId }) => {
             <div className="space-y-1">
               <label className="text-sm font-bold text-slate-700">Contact Name / Role</label>
               <input 
-                className="w-full p-3 border border-slate-200 rounded-xl outline-none"
+                className={`w-full p-3 border rounded-xl outline-none ${errors.contactName ? 'border-rose-400 bg-rose-50' : 'border-slate-200'}`}
                 placeholder="e.g. Mrs. Smith (Case Manager)"
                 value={formData.contactName}
                 onChange={e => setFormData({...formData, contactName: e.target.value})}
               />
+              {errors.contactName && <p className="text-rose-500 text-xs font-bold">{errors.contactName}</p>}
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -118,11 +129,12 @@ const CommLog: React.FC<CommLogProps> = ({ childId }) => {
           <div className="space-y-1">
             <label className="text-sm font-bold text-slate-700">Summary of Interaction</label>
             <textarea 
-              className="w-full p-4 border border-slate-200 rounded-xl outline-none h-24"
+              className={`w-full p-4 border rounded-xl outline-none h-24 ${errors.summary ? 'border-rose-400 bg-rose-50' : 'border-slate-200'}`}
               placeholder="What was discussed? What was agreed upon?"
               value={formData.summary}
               onChange={e => setFormData({...formData, summary: e.target.value})}
             />
+            {errors.summary && <p className="text-rose-500 text-xs font-bold">{errors.summary}</p>}
           </div>
           <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">
             Record Contact Entry

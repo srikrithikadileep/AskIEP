@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Scale, Send, Loader2, ShieldAlert, BookOpen, MessageCircle, ArrowRight, Gavel, Trash2, Info } from 'lucide-react';
+import { Scale, Send, Loader2, ShieldAlert, BookOpen, MessageCircle, ArrowRight, Gavel, Trash2, Info, HelpCircle } from 'lucide-react';
 import { chatWithLegalDirect } from '../services/geminiService';
 import { Message } from '../types';
 import { Content } from '@google/genai';
@@ -12,10 +12,12 @@ const LegalSupport: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const QUICK_QUERIES = [
-    "What is FAPE?",
-    "Requesting an IEE",
-    "Stay Put rights",
-    "10-Day Notice help"
+    { label: "What is FAPE?", desc: "Define Free Appropriate Public Education" },
+    { label: "Requesting an IEE", desc: "Independent Educational Evaluation rights" },
+    { label: "Stay Put Rights", desc: "Keeping placement during disputes" },
+    { label: "10-Day Notice", desc: "Rules for private placement reimbursement" },
+    { label: "Prior Written Notice", desc: "When must the school provide PWN?" },
+    { label: "Manifestation Determination", desc: "Discipline protection rules" }
   ];
 
   // Auto-scroll to bottom on new messages
@@ -84,18 +86,23 @@ const LegalSupport: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 h-[650px]">
         <div className="lg:col-span-1 flex flex-col gap-6">
-          <div className="flex-1 space-y-3 overflow-y-auto pr-2 custom-scrollbar">
-            <h4 className="font-black text-slate-900 text-xs uppercase tracking-widest px-2">Common Hurdles</h4>
-            {QUICK_QUERIES.map((q, i) => (
-              <button
-                key={i}
-                onClick={() => handleSend(q)}
-                disabled={isLoading}
-                className="w-full text-left p-4 bg-white border border-slate-100 rounded-2xl text-sm font-bold text-slate-600 hover:border-indigo-600 hover:text-indigo-600 transition-all flex items-center justify-between group shadow-sm disabled:opacity-50"
-              >
-                {q} <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-            ))}
+          <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+            <h4 className="font-black text-slate-900 text-xs uppercase tracking-widest px-2 mb-3 flex items-center gap-2">
+              <HelpCircle className="w-3 h-3" /> Common Hurdles
+            </h4>
+            <div className="space-y-3">
+              {QUICK_QUERIES.map((q, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleSend(q.label)}
+                  disabled={isLoading}
+                  className="w-full text-left p-4 bg-white border border-slate-100 rounded-2xl hover:border-indigo-200 hover:bg-indigo-50 transition-all group shadow-sm disabled:opacity-50"
+                >
+                  <div className="font-bold text-sm text-slate-700 group-hover:text-indigo-700">{q.label}</div>
+                  <div className="text-[10px] text-slate-400 mt-1 font-medium leading-tight group-hover:text-indigo-400">{q.desc}</div>
+                </button>
+              ))}
+            </div>
           </div>
           
           <div className="bg-slate-900 rounded-[32px] p-6 text-white shrink-0">

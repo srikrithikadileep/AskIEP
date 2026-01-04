@@ -15,7 +15,9 @@ import {
   Mail,
   Sparkles,
   Menu,
-  X
+  X,
+  Activity,
+  PenTool
 } from 'lucide-react';
 import { ViewType } from '../types';
 
@@ -33,7 +35,9 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
     { id: 'profile', label: 'Child Profile', icon: UserCircle },
     { id: 'analyzer', label: 'IEP Analyzer', icon: FileSearch },
     { id: 'progress', label: 'Goal Progress', icon: TrendingUp },
-    { id: 'comms', label: 'Comm Log', icon: Mail },
+    { id: 'behavior', label: 'Behavior (ABC)', icon: Activity },
+    { id: 'comms', label: 'Contact Log', icon: Mail },
+    { id: 'letters', label: 'Letter Writer', icon: PenTool },
     { id: 'prep', label: 'Advocacy Lab', icon: MessageSquare },
     { id: 'compliance', label: 'Compliance', icon: ClipboardCheck },
     { id: 'legal', label: 'Legal Support', icon: Scale },
@@ -44,6 +48,16 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
   const handleNavItemClick = (viewId: ViewType) => {
     onViewChange(viewId);
     setIsMobileMenuOpen(false);
+  };
+
+  const getHeaderTitle = () => {
+    switch (activeView) {
+      case 'prep': return 'Advocacy Lab';
+      case 'comms': return 'Contact Log';
+      case 'behavior': return 'Behavior Log';
+      case 'letters': return 'AI Letter Writer';
+      default: return activeView.replace('-', ' ');
+    }
   };
 
   return (
@@ -85,6 +99,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
             return (
               <button
                 key={item.id}
+                id={`nav-item-${item.id}`}
                 onClick={() => handleNavItemClick(item.id as ViewType)}
                 className={`w-full flex items-center gap-4 px-5 py-4 text-sm font-bold rounded-2xl transition-all duration-200 group ${
                   isActive 
@@ -119,11 +134,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
                 <Menu className="text-white w-5 h-5" />
              </button>
              <h1 className="text-xl font-black text-slate-900 capitalize tracking-tight hidden sm:block">
-              {activeView === 'prep' ? 'Advocacy Lab' : activeView.replace('-', ' ')}
+              {getHeaderTitle()}
             </h1>
             {/* Minimal label for very small screens */}
             <span className="sm:hidden font-black text-slate-900 text-sm tracking-tight truncate max-w-[120px]">
-              {activeView === 'prep' ? 'Advocacy Lab' : activeView.replace('-', ' ')}
+               {getHeaderTitle()}
             </span>
           </div>
           

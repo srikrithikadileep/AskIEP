@@ -1,5 +1,6 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Loader2, Sparkles, Trophy, Trash2 } from 'lucide-react';
+import { Send, User, Bot, Loader2, Sparkles, Trophy, Trash2, MessageSquarePlus } from 'lucide-react';
 import { api } from '../services/apiService';
 import { Message } from '../types';
 
@@ -18,16 +19,25 @@ const MeetingPrep: React.FC<MeetingPrepProps> = ({ childContext }) => {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const SUGGESTED_PROMPTS = [
+    "I disagree with this placement.",
+    "Can we request an IEE?",
+    "I want to see the data.",
+    "Is this a FAPE violation?",
+    "I need 1:1 aide support.",
+    "This goal is too vague."
+  ];
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  const handleSend = async (text?: string) => {
+    const userMessage = text || input;
+    if (!userMessage.trim() || isLoading) return;
     
-    const userMessage = input;
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
@@ -107,7 +117,24 @@ const MeetingPrep: React.FC<MeetingPrepProps> = ({ childContext }) => {
         )}
       </div>
 
-      <div className="p-4 border-t border-slate-100 bg-white">
+      <div className="p-4 border-t border-slate-100 bg-white space-y-4">
+        {/* Suggestion Chips */}
+        <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+          <div className="flex items-center gap-1 px-2 text-xs font-black text-indigo-300 uppercase tracking-widest shrink-0">
+            <MessageSquarePlus className="w-3 h-3" /> Prompts
+          </div>
+          {SUGGESTED_PROMPTS.map((prompt, i) => (
+            <button
+              key={i}
+              onClick={() => handleSend(prompt)}
+              disabled={isLoading}
+              className="whitespace-nowrap px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-100 transition-all shrink-0"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+
         <div className="flex gap-2">
           <input
             type="text"
@@ -118,7 +145,7 @@ const MeetingPrep: React.FC<MeetingPrepProps> = ({ childContext }) => {
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           />
           <button
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={!input.trim() || isLoading}
             className="bg-indigo-600 text-white p-3 rounded-2xl hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md shadow-indigo-100"
           >

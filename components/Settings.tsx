@@ -1,8 +1,12 @@
 
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, ShieldCheck, Database, Trash2, Download, Zap, Info, Wifi, WifiOff, CheckCircle2 } from 'lucide-react';
+import { Settings as SettingsIcon, ShieldCheck, Database, Trash2, Download, Zap, Info, Wifi, WifiOff, CheckCircle2, RotateCcw } from 'lucide-react';
 
-const Settings: React.FC = () => {
+interface SettingsProps {
+  onStartTour?: () => void;
+}
+
+const Settings: React.FC<SettingsProps> = ({ onStartTour }) => {
   // Safer check for process.env to avoid ReferenceError in browser
   const isLocalOnly = typeof process === 'undefined' || !process.env || !process.env.DATABASE_URL;
   const [isExporting, setIsExporting] = useState(false);
@@ -110,7 +114,7 @@ const Settings: React.FC = () => {
           <h3 className="text-xl font-black text-slate-900">Data Sovereignty</h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <button 
             onClick={handleExport}
             disabled={isExporting}
@@ -125,6 +129,17 @@ const Settings: React.FC = () => {
             <p className="text-sm text-slate-500 font-medium leading-relaxed">
               Download a complete archive of your child's advocacy logs and IEP data for your personal records.
             </p>
+          </button>
+
+          <button 
+             onClick={onStartTour}
+             className="flex flex-col p-8 rounded-[32px] border-2 border-slate-50 bg-slate-50/50 hover:bg-white hover:border-emerald-600 hover:shadow-xl transition-all text-left group"
+          >
+             <RotateCcw className="w-8 h-8 text-emerald-600 mb-4 group-hover:rotate-180 transition-transform duration-500" />
+             <h4 className="font-black text-slate-900 mb-2">Restart Tour</h4>
+             <p className="text-sm text-slate-500 font-medium leading-relaxed">
+               Re-launch the onboarding guide to review key features and tooltips.
+             </p>
           </button>
 
           <button 

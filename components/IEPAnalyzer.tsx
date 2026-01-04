@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Upload, 
@@ -16,25 +17,14 @@ import {
   Trash2,
   FileUp,
   FileCode,
-  FileBox,
-  Copy,
-  Mail,
-  FileDiff,
-  CalendarDays,
-  ListChecks,
-  Edit2,
-  Check,
-  Type as TypeIcon,
-  AlignLeft,
-  Zap,
-  RotateCcw,
-  Info
+  FileBox
 } from 'lucide-react';
 import { api } from '../services/apiService';
 import { IepAnalysis, IepDocument } from '../types';
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
 
+// Set the worker source for pdfjs-dist
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.0.379/build/pdf.worker.mjs`;
 
 interface IEPAnalyzerProps {
@@ -46,22 +36,11 @@ const IEPAnalyzer: React.FC<IEPAnalyzerProps> = ({ childId }) => {
   const [filename, setFilename] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
-  const [analysis, setAnalysis] = useState<any | null>(null);
+  const [analysis, setAnalysis] = useState<IepAnalysis | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [repository, setRepository] = useState<IepDocument[]>([]);
-  const [view, setView] = useState<'upload' | 'repository' | 'analysis' | 'compare'>('upload');
+  const [view, setView] = useState<'upload' | 'repository' | 'analysis'>('upload');
   
-  // Comparison State
-  const [compareDocs, setCompareDocs] = useState<string[]>([]);
-  const [comparisonResult, setComparisonResult] = useState<any>(null);
-  const [isComparing, setIsComparing] = useState(false);
-
-  // Letter State
-  const [actionLetter, setActionLetter] = useState<string | null>(null);
-  const [isGeneratingLetter, setIsGeneratingLetter] = useState(false);
-  const [isEditingLetter, setIsEditingLetter] = useState(false);
-  const [isRevisingLetter, setIsRevisingLetter] = useState(false);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -81,6 +60,7 @@ const IEPAnalyzer: React.FC<IEPAnalyzerProps> = ({ childId }) => {
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
     let fullText = '';
+    
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
@@ -93,26 +73,44 @@ const IEPAnalyzer: React.FC<IEPAnalyzerProps> = ({ childId }) => {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     setFilename(file.name);
     setIsParsing(true);
+    
     try {
       const fileType = file.name.split('.').pop()?.toLowerCase();
       const reader = new FileReader();
+
       if (fileType === 'pdf') {
         reader.onload = async (event) => {
-          const text = await extractTextFromPdf(event.target?.result as ArrayBuffer);
-          setFileText(text);
-          setIsParsing(false);
+          try {
+            const arrayBuffer = event.target?.result as ArrayBuffer;
+            const text = await extractTextFromPdf(arrayBuffer);
+            setFileText(text);
+            setIsParsing(false);
+          } catch (err) {
+            console.error("PDF Parsing error", err);
+            alert("Could not parse PDF file. Please try another format.");
+            setIsParsing(false);
+          }
         };
         reader.readAsArrayBuffer(file);
       } else if (fileType === 'docx') {
         reader.onload = async (event) => {
-          const result = await mammoth.extractRawText({ arrayBuffer: event.target?.result as ArrayBuffer });
-          setFileText(result.value);
-          setIsParsing(false);
+          try {
+            const arrayBuffer = event.target?.result as ArrayBuffer;
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            setFileText(result.value);
+            setIsParsing(false);
+          } catch (err) {
+            console.error("DOCX Parsing error", err);
+            alert("Could not parse Word document. Please try another format.");
+            setIsParsing(false);
+          }
         };
         reader.readAsArrayBuffer(file);
       } else {
+        // Default to text parsing
         reader.onload = (event) => {
           setFileText(event.target?.result as string);
           setIsParsing(false);
@@ -120,6 +118,7 @@ const IEPAnalyzer: React.FC<IEPAnalyzerProps> = ({ childId }) => {
         reader.readAsText(file);
       }
     } catch (err) {
+      console.error("File loading error", err);
       setIsParsing(false);
     }
   };
@@ -127,63 +126,22 @@ const IEPAnalyzer: React.FC<IEPAnalyzerProps> = ({ childId }) => {
   const handleAnalyze = async () => {
     if (!fileText.trim()) return;
     setIsAnalyzing(true);
-    setStatusMessage('Consulting Advocacy Engine...');
+    setStatusMessage('Consulting Gemini Advocacy Engine...');
+    
     try {
+      setTimeout(() => setStatusMessage('Identifying goals and accommodations...'), 2000);
+      setTimeout(() => setStatusMessage('Scanning for IDEA compliance flags...'), 4500);
+      
       const result = await api.analyzeIEP(fileText, childId, filename || 'Manual Paste');
       setAnalysis(result);
       setView('analysis');
-      loadRepository();
+      loadRepository(); // Refresh repo
     } catch (error: any) {
-      alert(`Analysis failed: ${error.message}`);
+      console.error(error);
+      alert(`Analysis failed: ${error.message || "Please check your network and try again."}`);
     } finally {
       setIsAnalyzing(false);
-    }
-  };
-
-  const handleCompareTrigger = async () => {
-    if (compareDocs.length !== 2) return;
-    setIsComparing(true);
-    try {
-      const doc1 = repository.find(d => d.id === compareDocs[0]);
-      const doc2 = repository.find(d => d.id === compareDocs[1]);
-      if (doc1 && doc2) {
-        const result = await api.compareIEPs(doc1.content, doc2.content);
-        setComparisonResult(result);
-      }
-    } catch (err) {
-      alert("Comparison failed.");
-    } finally {
-      setIsComparing(false);
-    }
-  };
-
-  const handleGenerateLetter = async () => {
-    if (!analysis) return;
-    setIsGeneratingLetter(true);
-    try {
-      const letter = await api.generateActionLetter(analysis, "Your Child");
-      setActionLetter(letter);
-      setIsEditingLetter(false);
-    } catch (err) {
-      alert("Letter generation failed.");
-    } finally {
-      setIsGeneratingLetter(false);
-    }
-  };
-
-  const handleReviseLetter = async (instruction: string) => {
-    if (!actionLetter) return;
-    setIsRevisingLetter(true);
-    try {
-      const revised = await api.reviseActionLetter(actionLetter, instruction);
-      if (revised) {
-        setActionLetter(revised);
-        setIsEditingLetter(false);
-      }
-    } catch (err) {
-      alert("Revision failed.");
-    } finally {
-      setIsRevisingLetter(false);
+      setStatusMessage('');
     }
   };
 
@@ -192,17 +150,24 @@ const IEPAnalyzer: React.FC<IEPAnalyzerProps> = ({ childId }) => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tight">IEP AI Analyzer</h2>
-          <p className="text-slate-500 font-medium">Identify service gaps and secure educational benefit.</p>
+          <p className="text-slate-500 font-medium">Upload PDF, Word, or Text files to unlock advocacy insights.</p>
         </div>
         <div className="flex gap-4">
-          <button onClick={() => setView('upload')} className={`px-5 py-2.5 rounded-xl font-black text-sm transition-all ${view === 'upload' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 border'}`}>
-            Analyze
+          <button 
+            onClick={() => setView('upload')}
+            className={`px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all ${
+              view === 'upload' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+            }`}
+          >
+            <FileUp className="w-4 h-4" /> New Analysis
           </button>
-          <button onClick={() => setView('repository')} className={`px-5 py-2.5 rounded-xl font-black text-sm transition-all ${view === 'repository' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 border'}`}>
-            Documents
-          </button>
-          <button onClick={() => setView('compare')} className={`px-5 py-2.5 rounded-xl font-black text-sm transition-all ${view === 'compare' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 border'}`}>
-            Compare
+          <button 
+            onClick={() => setView('repository')}
+            className={`px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all ${
+              view === 'repository' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+            }`}
+          >
+            <Database className="w-4 h-4" /> Document Repo
           </button>
         </div>
       </div>
@@ -210,207 +175,249 @@ const IEPAnalyzer: React.FC<IEPAnalyzerProps> = ({ childId }) => {
       {view === 'upload' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
-            <div className="bg-white border-2 border-dashed border-slate-200 rounded-[40px] p-8 text-center space-y-8 shadow-sm">
-              <div className="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto shadow-lg rotate-3">
-                <Upload className="w-8 h-8 text-white" />
+            <div className="bg-white border-2 border-dashed border-slate-200 rounded-[40px] p-8 md:p-12 text-center space-y-8 shadow-sm">
+              <div className="bg-indigo-600 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-indigo-100 rotate-3 transition-transform hover:rotate-0">
+                <Upload className="w-10 h-10 text-white" />
               </div>
+              
               <div className="max-w-xl mx-auto space-y-6">
-                <h3 className="text-xl font-black text-slate-800">Choose your document</h3>
-                <div className="flex justify-center gap-4">
-                  <button onClick={() => fileInputRef.current?.click()} className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-sm hover:bg-indigo-700 transition-all">
-                    {isParsing ? <Loader2 className="animate-spin w-4 h-4" /> : 'Select File'}
+                <h3 className="text-2xl font-black text-slate-800">Ready your IEP</h3>
+                <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                  Support for <span className="text-indigo-600 font-bold">PDF, Word (.docx)</span>, and <span className="text-indigo-600 font-bold">Text (.txt)</span>.
+                  Your documents are processed locally before secure AI analysis.
+                </p>
+                
+                <div className="flex flex-wrap gap-4 justify-center">
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isParsing}
+                    className="px-6 py-4 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg"
+                  >
+                    {isParsing ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileUp className="w-5 h-5" />}
+                    Choose Document
                   </button>
-                  <input type="file" className="hidden" ref={fileInputRef} accept=".pdf,.docx,.txt" onChange={handleFileUpload} />
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    ref={fileInputRef} 
+                    accept=".txt,.pdf,.docx"
+                    onChange={handleFileUpload}
+                  />
                 </div>
-                {filename && <div className="p-2 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100 italic">Attached: {filename}</div>}
-                <textarea className="w-full h-48 p-5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 font-medium text-sm text-slate-700 shadow-inner" placeholder="Or paste IEP content here..." value={fileText} onChange={e => setFileText(e.target.value)} />
-                <button onClick={handleAnalyze} disabled={isAnalyzing || !fileText.trim()} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-black text-lg shadow-xl hover:bg-indigo-700 disabled:opacity-50">
-                  {isAnalyzing ? <Loader2 className="animate-spin w-6 h-6 mx-auto" /> : 'Unlock AI Analysis'}
+
+                {filename && (
+                  <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border border-emerald-100 animate-in zoom-in">
+                    <CheckCircle className="w-4 h-4" /> Ready: {filename}
+                  </div>
+                )}
+                
+                <div className="relative group">
+                  <textarea
+                    className="w-full h-64 p-6 bg-slate-50 border border-slate-200 rounded-[32px] focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-medium text-slate-700 resize-none shadow-inner"
+                    placeholder="Alternatively, paste the IEP text content here..."
+                    value={fileText}
+                    onChange={(e) => {
+                      setFileText(e.target.value);
+                      if (!filename) setFilename('Manual Document Entry');
+                    }}
+                  />
+                  <div className="absolute bottom-6 right-8 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <Lock className="w-3 h-3" /> Secure Vault Encryption
+                  </div>
+                </div>
+                
+                <button
+                  onClick={handleAnalyze}
+                  disabled={isAnalyzing || isParsing || !fileText.trim()}
+                  className="w-full bg-indigo-600 text-white py-6 rounded-2xl font-black text-lg flex items-center justify-center gap-3 hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-xl shadow-indigo-100 active:scale-95"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      {statusMessage || 'Analyzing Content...'}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-6 h-6" />
+                      Perform AI Analysis
+                    </>
+                  )}
                 </button>
               </div>
             </div>
           </div>
-          <div className="bg-slate-900 p-8 rounded-[40px] text-white space-y-6 shadow-xl relative overflow-hidden">
-             <BrainCircuit className="absolute -bottom-4 -right-4 w-32 h-32 text-indigo-500/20" />
-             <h4 className="font-black text-xs uppercase tracking-[0.2em] text-indigo-400">Security Note</h4>
-             <p className="text-sm font-medium leading-relaxed opacity-80">Analysis is performed via encrypted tunnels. Your sensitive data never trains public models.</p>
+
+          <div className="space-y-6">
+            <div className="bg-slate-900 p-8 rounded-[40px] text-white space-y-6 shadow-xl relative overflow-hidden">
+               <BrainCircuit className="absolute -bottom-4 -right-4 w-32 h-32 text-indigo-500/20" />
+               <h4 className="font-black text-xs uppercase tracking-[0.2em] text-indigo-400">Multi-Format Engine</h4>
+               <p className="text-lg font-medium leading-relaxed relative z-10">
+                 Our system handles complex layout parsing for PDFs and Word docs to ensure data fidelity.
+               </p>
+               <div className="grid grid-cols-3 gap-3 relative z-10">
+                  <div className="flex flex-col items-center gap-2 bg-white/5 p-4 rounded-2xl">
+                    <FileText className="w-6 h-6 text-indigo-400" />
+                    <span className="text-[10px] font-black uppercase tracking-tighter">PDF</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-2 bg-white/5 p-4 rounded-2xl">
+                    <FileCode className="w-6 h-6 text-emerald-400" />
+                    <span className="text-[10px] font-black uppercase tracking-tighter">DOCX</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-2 bg-white/5 p-4 rounded-2xl">
+                    <FileBox className="w-6 h-6 text-amber-400" />
+                    <span className="text-[10px] font-black uppercase tracking-tighter">TXT</span>
+                  </div>
+               </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm space-y-4">
+               <h4 className="font-black text-slate-900 text-sm flex items-center gap-2">
+                 <History className="w-4 h-4 text-indigo-600" /> History Tracker
+               </h4>
+               <div className="space-y-3">
+                  {repository.slice(0, 3).map(doc => (
+                    <button 
+                      key={doc.id}
+                      onClick={() => setView('repository')}
+                      className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl text-left hover:bg-indigo-50 transition-all group"
+                    >
+                      <div className="overflow-hidden pr-2">
+                        <p className="text-xs font-black text-slate-800 truncate">{doc.filename}</p>
+                        <p className="text-[10px] text-slate-400 font-bold">{new Date(doc.created_at).toLocaleDateString()}</p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 transition-colors shrink-0" />
+                    </button>
+                  ))}
+                  {repository.length === 0 && <p className="text-xs text-slate-400 italic py-4 text-center">Repository is empty.</p>}
+               </div>
+            </div>
           </div>
         </div>
       )}
 
-      {view === 'compare' && (
-        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 space-y-8 animate-in slide-in-from-right-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <FileDiff className="w-6 h-6 text-indigo-600" /> Comparison Engine
-            </h3>
-            <button onClick={handleCompareTrigger} disabled={isComparing || compareDocs.length !== 2} className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-sm shadow-xl disabled:opacity-50">
-              {isComparing ? 'Comparing...' : 'Run Gap Analysis'}
-            </button>
+      {view === 'repository' && (
+        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden animate-in slide-in-from-right-4">
+          <div className="p-8 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
+             <div>
+               <h3 className="text-2xl font-black text-slate-900 tracking-tight">Document Repository</h3>
+               <p className="text-sm font-medium text-slate-500">Secure historical storage for all IEP versions.</p>
+             </div>
+             <div className="flex items-center gap-4">
+                <span className="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest">
+                  {repository.length} Records Securely Stored
+                </span>
+             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {repository.map(doc => {
-              const selected = compareDocs.includes(doc.id);
-              return (
-                <button key={doc.id} onClick={() => setCompareDocs(prev => selected ? prev.filter(id => id !== doc.id) : [...prev, doc.id].slice(-2))} className={`p-6 rounded-2xl border-2 text-left transition-all ${selected ? 'bg-indigo-50 border-indigo-600 shadow-md' : 'bg-white border-slate-100'}`}>
-                   <p className="text-sm font-black text-slate-900 truncate">{doc.filename}</p>
-                   <p className="text-[10px] text-slate-400 font-bold uppercase">{new Date(doc.created_at).toLocaleDateString()}</p>
-                </button>
-              );
-            })}
+          
+          <div className="divide-y divide-slate-50">
+             {repository.map((doc) => (
+               <div key={doc.id} className="p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between hover:bg-slate-50 transition-all group gap-4">
+                 <div className="flex items-center gap-6">
+                   <div className="p-4 bg-slate-100 rounded-2xl group-hover:bg-indigo-600 transition-all shrink-0">
+                     <FileText className="w-6 h-6 text-slate-400 group-hover:text-white" />
+                   </div>
+                   <div className="min-w-0">
+                     <h4 className="text-lg font-black text-slate-900 group-hover:text-indigo-600 transition-colors truncate">{doc.filename}</h4>
+                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                       <History className="w-3 h-3" /> Analyzed {new Date(doc.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                     </p>
+                   </div>
+                 </div>
+                 <div className="flex items-center gap-3 shrink-0">
+                   {doc.analysis_id && (
+                     <button className="px-5 py-2.5 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all">
+                       Review Analysis
+                     </button>
+                   )}
+                   <button className="p-2.5 text-slate-300 hover:text-rose-500 transition-colors">
+                     <Trash2 className="w-5 h-5" />
+                   </button>
+                 </div>
+               </div>
+             ))}
+             
+             {repository.length === 0 && (
+               <div className="p-24 text-center">
+                 <Database className="w-16 h-16 text-slate-100 mx-auto mb-4" />
+                 <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">The repository is currently empty.</p>
+                 <button onClick={() => setView('upload')} className="mt-4 text-indigo-600 font-black text-sm hover:underline">
+                    Analyze your first IEP
+                 </button>
+               </div>
+             )}
           </div>
-          {comparisonResult && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t animate-in zoom-in">
-               <div className="bg-rose-50 p-6 rounded-3xl border border-rose-100">
-                  <h4 className="text-rose-900 font-black text-xs uppercase tracking-widest mb-4">Service Reductions</h4>
-                  <ul className="space-y-2">
-                    {comparisonResult.reductions.map((r: string, i: number) => <li key={i} className="text-sm text-rose-800 font-medium">• {r}</li>)}
-                  </ul>
-               </div>
-               <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100">
-                  <h4 className="text-emerald-900 font-black text-xs uppercase tracking-widest mb-4">New Supports</h4>
-                  <ul className="space-y-2">
-                    {comparisonResult.newSupports.map((s: string, i: number) => <li key={i} className="text-sm text-emerald-800 font-medium">• {s}</li>)}
-                  </ul>
-               </div>
-            </div>
-          )}
         </div>
       )}
 
       {view === 'analysis' && analysis && (
         <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-700">
+          <div className="flex items-center justify-between">
+            <button 
+              onClick={() => setView('upload')}
+              className="flex items-center gap-2 text-indigo-600 font-black text-sm hover:underline"
+            >
+              <ArrowLeft className="w-4 h-4" /> Start New Analysis
+            </button>
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+               <CheckCircle className="w-3 h-3" /> Records Synced
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
-              <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-xl">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="p-3 bg-indigo-50 rounded-2xl"><ListChecks className="w-6 h-6 text-indigo-600" /></div>
-                  <h3 className="text-xl font-black text-slate-900">Mandated Service Grid</h3>
+              <div className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-xl shadow-slate-200/20">
+                <div className="flex items-center gap-4 mb-8">
+                  <div className="p-3 bg-indigo-50 rounded-2xl">
+                    <BrainCircuit className="w-8 h-8 text-indigo-600" />
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">Plain-Language Summary</h3>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {analysis.serviceGrid?.map((s: any, i: number) => (
-                    <div key={i} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex justify-between items-center">
-                       <div>
-                         <p className="text-xs font-black text-slate-900 uppercase">{s.service}</p>
-                         <p className="text-[10px] font-bold text-slate-400">{s.setting || 'Not Specified'}</p>
-                       </div>
-                       <span className="bg-white px-3 py-1 rounded-full text-[10px] font-black text-indigo-600 border border-indigo-100">{s.frequency}</span>
+                <p className="text-slate-600 leading-relaxed text-lg font-medium italic">
+                  "{analysis.summary}"
+                </p>
+              </div>
+
+              <div className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-xl shadow-slate-200/20">
+                <h3 className="text-2xl font-black text-slate-900 mb-8 flex items-center gap-4">
+                  <CheckCircle className="w-8 h-8 text-emerald-500" />
+                  Key Goals Extracted
+                </h3>
+                <div className="space-y-4">
+                  {analysis.goals.map((goal, i) => (
+                    <div key={i} className="flex gap-4 p-5 bg-slate-50 rounded-[24px] border border-slate-100 hover:border-emerald-200 transition-colors">
+                      <div className="w-8 h-8 bg-white border border-slate-200 rounded-full flex items-center justify-center text-xs font-black text-slate-400 shrink-0">
+                        {i + 1}
+                      </div>
+                      <p className="text-slate-700 font-bold leading-relaxed">{goal}</p>
                     </div>
                   ))}
                 </div>
               </div>
-
-              {/* Action Center with enhanced letter editing/revision */}
-              <div className="bg-indigo-600 p-8 rounded-[40px] text-white space-y-6 relative overflow-hidden shadow-2xl shadow-indigo-200">
-                <Mail className="absolute -bottom-4 -right-4 w-32 h-32 text-white/10" />
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-2xl font-black tracking-tight">Parent Action Center</h3>
-                    <p className="text-indigo-100/80 font-medium text-sm">Convert these findings into a formal school request.</p>
-                  </div>
-                  {!actionLetter ? (
-                    <button onClick={handleGenerateLetter} disabled={isGeneratingLetter} className="px-6 py-3 bg-white text-indigo-600 rounded-xl font-black text-sm shadow-xl active:scale-95 transition-all flex items-center gap-2">
-                      {isGeneratingLetter ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-                      Generate Concern Letter
-                    </button>
-                  ) : (
-                    <div className="flex gap-2">
-                      <button onClick={() => setIsEditingLetter(!isEditingLetter)} className="p-3 bg-white/20 hover:bg-white/30 rounded-xl transition-all" title="Edit Letter">
-                        {isEditingLetter ? <Check className="w-5 h-5" /> : <Edit2 className="w-5 h-5" />}
-                      </button>
-                      <button onClick={() => navigator.clipboard.writeText(actionLetter)} className="p-3 bg-white/20 hover:bg-white/30 rounded-xl transition-all" title="Copy to Clipboard">
-                        <Copy className="w-5 h-5" />
-                      </button>
-                      <button onClick={handleGenerateLetter} className="p-3 bg-white/20 hover:bg-white/30 rounded-xl transition-all text-rose-300" title="Regenerate Original">
-                        <RotateCcw className="w-5 h-5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {actionLetter && (
-                  <div className="space-y-4 animate-in slide-in-from-top-4">
-                    {/* Revision Toolbar */}
-                    <div className="flex flex-wrap gap-2 p-2 bg-black/20 rounded-2xl backdrop-blur-sm border border-white/10">
-                      <button 
-                        onClick={() => handleReviseLetter("Make this letter much shorter and more concise while keeping core legal points.")}
-                        disabled={isRevisingLetter}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-white/10 hover:bg-indigo-500 transition-all disabled:opacity-50"
-                      >
-                        <AlignLeft className="w-3 h-3" /> Concise
-                      </button>
-                      <button 
-                        onClick={() => handleReviseLetter("Make this letter more detailed, expand on the parent concerns and add more context.")}
-                        disabled={isRevisingLetter}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-white/10 hover:bg-indigo-500 transition-all disabled:opacity-50"
-                      >
-                        <TypeIcon className="w-3 h-3" /> Detailed
-                      </button>
-                      <button 
-                        onClick={() => handleReviseLetter("Make this letter sound more firm, direct, and emphasize legal compliance with IDEA.")}
-                        disabled={isRevisingLetter}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-white/10 hover:bg-indigo-500 transition-all disabled:opacity-50"
-                      >
-                        <Zap className="w-3 h-3" /> Direct
-                      </button>
-                      <button 
-                        onClick={() => handleReviseLetter("Rewrite to sound more collaborative and solution-oriented while keeping the same concerns.")}
-                        disabled={isRevisingLetter}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-white/10 hover:bg-indigo-500 transition-all disabled:opacity-50"
-                      >
-                        <CheckCircle className="w-3 h-3" /> Collaborative
-                      </button>
-                    </div>
-
-                    <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 relative group h-80 overflow-hidden">
-                      {isRevisingLetter && (
-                        <div className="absolute inset-0 z-20 bg-indigo-900/40 backdrop-blur-sm flex items-center justify-center rounded-2xl">
-                          <div className="flex flex-col items-center gap-4">
-                            <Loader2 className="w-10 h-10 animate-spin text-white" />
-                            <p className="text-xs font-black uppercase tracking-widest text-white">AI is redrafting...</p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {isEditingLetter ? (
-                        <textarea 
-                          className="w-full h-full p-6 bg-transparent outline-none text-indigo-50 text-sm font-medium leading-relaxed resize-none font-inter"
-                          value={actionLetter}
-                          onChange={(e) => setActionLetter(e.target.value)}
-                        />
-                      ) : (
-                        <div className="w-full h-full p-6 overflow-y-auto custom-scrollbar">
-                           <pre className="text-xs font-medium leading-relaxed whitespace-pre-wrap text-indigo-50 font-inter">{actionLetter}</pre>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
 
             <div className="space-y-8">
-              <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm space-y-6">
-                 <h4 className="font-black text-slate-900 text-xs uppercase tracking-widest flex items-center gap-2">
-                   <AlertCircle className="w-4 h-4 text-rose-500" /> Compliance Red Flags
-                 </h4>
-                 <div className="space-y-3">
-                   {analysis.redFlags.map((flag: string, i: number) => (
-                     <div key={i} className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-[11px] font-bold text-rose-800 leading-relaxed">
-                       {flag}
-                     </div>
-                   ))}
-                 </div>
+              <div className="bg-amber-50 p-8 rounded-[40px] border border-amber-100 shadow-xl shadow-amber-100/20">
+                <h3 className="text-xl font-black text-amber-900 mb-6 flex items-center gap-3">
+                  <AlertCircle className="w-6 h-6 text-amber-600" />
+                  Advocacy Red Flags
+                </h3>
+                <ul className="space-y-4">
+                  {analysis.redFlags.map((flag, i) => (
+                    <li key={i} className="flex gap-3 text-amber-800 text-sm font-bold leading-relaxed bg-white/50 p-4 rounded-2xl border border-amber-200/50">
+                      <span className="text-amber-500 font-black">•</span> {flag}
+                    </li>
+                  ))}
+                </ul>
               </div>
 
-              {/* Fix: Added missing Info icon import from lucide-react */}
-              <div className="bg-slate-900 p-8 rounded-[40px] text-white space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Info className="w-4 h-4 text-indigo-400" />
-                  <h4 className="text-xs font-black uppercase tracking-widest text-indigo-400">Advocacy Tip</h4>
-                </div>
-                <p className="text-xs font-medium leading-relaxed text-slate-300 italic">
-                  "Documentation is your best defense. If it's not in writing, the school district can claim it didn't happen. Always send a follow-up email after meetings."
+              <div className="bg-slate-900 p-8 rounded-[40px] text-white shadow-2xl relative overflow-hidden">
+                <Scale className="absolute -bottom-4 -right-4 w-32 h-32 text-white/5" />
+                <h3 className="text-xl font-black mb-4 flex items-center gap-3 relative z-10">
+                  <Scale className="w-6 h-6 text-indigo-400" />
+                  Legal Perspective
+                </h3>
+                <p className="text-indigo-100/80 text-sm leading-relaxed font-medium relative z-10">
+                  {analysis.legalLens}
                 </p>
               </div>
             </div>

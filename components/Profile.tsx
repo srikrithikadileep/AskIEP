@@ -40,7 +40,20 @@ const Profile: React.FC<ProfileProps> = ({ child, onUpdate }) => {
     'Intellectual Disability'
   ];
 
+  const validate = () => {
+    if (!formData.name.trim()) {
+        alert("Name cannot be empty.");
+        return false;
+    }
+    if (formData.age < 0 || formData.age > 22) {
+        alert("Please enter a valid age.");
+        return false;
+    }
+    return true;
+  };
+
   const handleSave = async () => {
+    if (!validate()) return;
     setIsSaving(true);
     try {
       const saved = await api.saveProfile(formData);

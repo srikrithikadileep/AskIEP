@@ -1,112 +1,127 @@
 
-import pg from 'pg';
-
-const { Pool } = pg;
+import { Pool } from 'pg';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false },
-  connectionTimeoutMillis: 10000, 
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  max: 20,
   idleTimeoutMillis: 30000,
-  max: 10
+  connectionTimeoutMillis: 5000,
 });
 
+// Production Pool Event Listeners
+pool.on('connect', () => {
+  console.log('[DB] New client connected to the pool');
+});
+
+pool.on('error', (err) => {
+  console.error('[DB] Unexpected error on idle client', err);
+  // Do not exit process; the pool will attempt to handle reconnections
+});
+
+export const getDb = () => pool;
+
 export const initDb = async () => {
-  if (!process.env.DATABASE_URL) {
-    console.error("DATABASE_URL is missing. Operating in degraded mode.");
-    return;
-  }
-
-  let client;
+  const client = await pool.connect();
   try {
-    console.log('DB: Connecting...');
-    client = await pool.connect();
-    
-    await client.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
+    console.log('[DB] Synchronizing production schema...');
 
+    // Combined schema initialization for performance
     await client.query(`
       CREATE TABLE IF NOT EXISTS child_profiles (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         age INTEGER,
         grade TEXT,
-        disabilities TEXT[],
-        focus_tags TEXT[],
+        disabilities JSONB DEFAULT '[]', 
+        focus_tags JSONB DEFAULT '[]',   
         advocacy_level TEXT,
         primary_goal TEXT,
         state_context TEXT,
-        last_iep_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_iep_date TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
 
-    await client.query(`
       CREATE TABLE IF NOT EXISTS iep_analyses (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        child_id UUID REFERENCES child_profiles(id),
+        id TEXT PRIMARY KEY,
+        child_id TEXT REFERENCES child_profiles(id) ON DELETE CASCADE,
         summary TEXT,
-        goals JSONB,
-        accommodations JSONB,
-        red_flags JSONB,
+        goals JSONB DEFAULT '[]',          
+        accommodations JSONB DEFAULT '[]', 
+        red_flags JSONB DEFAULT '[]',      
         legal_lens TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
 
-    await client.query(`
       CREATE TABLE IF NOT EXISTS iep_documents (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        child_id UUID REFERENCES child_profiles(id),
+        id TEXT PRIMARY KEY,
+        child_id TEXT REFERENCES child_profiles(id) ON DELETE CASCADE,
         filename TEXT NOT NULL,
         content TEXT NOT NULL,
-        analysis_id UUID REFERENCES iep_analyses(id),
+        analysis_id TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
 
-    await client.query(`
       CREATE TABLE IF NOT EXISTS compliance_logs (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        child_id UUID REFERENCES child_profiles(id),
-        date DATE NOT NULL,
+        id TEXT PRIMARY KEY,
+        child_id TEXT REFERENCES child_profiles(id) ON DELETE CASCADE,
+        date TEXT NOT NULL,
         service_type TEXT NOT NULL,
         status TEXT NOT NULL,
         notes TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
 
-    await client.query(`
       CREATE TABLE IF NOT EXISTS goal_progress (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        child_id UUID REFERENCES child_profiles(id),
+        id TEXT PRIMARY KEY,
+        child_id TEXT REFERENCES child_profiles(id) ON DELETE CASCADE,
         goal_name TEXT NOT NULL,
         current_value TEXT,
         target_value TEXT,
         status TEXT,
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
 
-    await client.query(`
       CREATE TABLE IF NOT EXISTS communication_logs (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        child_id UUID REFERENCES child_profiles(id),
-        date DATE NOT NULL,
+        id TEXT PRIMARY KEY,
+        child_id TEXT REFERENCES child_profiles(id) ON DELETE CASCADE,
+        date TEXT NOT NULL,
         contact_name TEXT NOT NULL,
         method TEXT NOT NULL,
         summary TEXT,
         follow_up_needed BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS behavior_logs (
+        id TEXT PRIMARY KEY,
+        child_id TEXT REFERENCES child_profiles(id) ON DELETE CASCADE,
+        date TEXT NOT NULL,
+        time TEXT,
+        antecedent TEXT,
+        behavior TEXT,
+        consequence TEXT,
+        intensity INTEGER,
+        duration_minutes INTEGER,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS letter_drafts (
+        id TEXT PRIMARY KEY,
+        child_id TEXT REFERENCES child_profiles(id) ON DELETE CASCADE,
+        title TEXT,
+        content TEXT,
+        type TEXT,
+        last_edited TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `);
 
-    console.log('DB: Tables ready.');
+    console.log('[DB] Production tables verified and ready.');
   } catch (err) {
-    console.error('DB Init Error:', err);
+    console.error('[DB] Initialization Critical Failure:', err);
+    throw err;
   } finally {
-    if (client) client.release();
+    client.release();
   }
 };
-
-export default pool;

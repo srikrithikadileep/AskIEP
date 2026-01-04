@@ -16,7 +16,8 @@ import {
   ChevronRight,
   Target,
   BarChart4,
-  Activity
+  Activity,
+  PenTool
 } from 'lucide-react';
 import { ChildProfile, ViewType, GoalProgress, ComplianceLog } from '../types';
 import { api } from '../services/apiService';
@@ -90,6 +91,7 @@ const Dashboard: React.FC<DashboardProps> = ({ child, onNavigate }) => {
           </p>
           <div className="flex flex-wrap gap-4">
             <button 
+              id="dashboard-hero-analyze"
               onClick={() => onNavigate('analyzer')}
               className="bg-white text-slate-900 px-8 py-4 rounded-2xl font-black hover:bg-indigo-50 transition-all flex items-center gap-2 shadow-lg hover:scale-[1.02] active:scale-95"
             >
@@ -97,6 +99,7 @@ const Dashboard: React.FC<DashboardProps> = ({ child, onNavigate }) => {
               Analyze New IEP
             </button>
             <button 
+              id="dashboard-hero-lab"
               onClick={() => onNavigate('prep')}
               className="bg-indigo-600/30 backdrop-blur-xl border border-white/10 text-white px-8 py-4 rounded-2xl font-black hover:bg-indigo-600/50 transition-all flex items-center gap-2 hover:scale-[1.02] active:scale-95"
             >
@@ -110,7 +113,7 @@ const Dashboard: React.FC<DashboardProps> = ({ child, onNavigate }) => {
       {/* Analytics Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {/* Compliance Meter */}
-        <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm space-y-6">
+        <div id="dashboard-compliance-meter" className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm space-y-6">
           <h4 className="font-black text-slate-800 text-sm uppercase tracking-widest flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-500" /> Compliance Health
           </h4>
@@ -193,6 +196,7 @@ const Dashboard: React.FC<DashboardProps> = ({ child, onNavigate }) => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <button 
+              id="dashboard-card-goals"
               onClick={() => onNavigate('progress')}
               className="group relative bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all text-left overflow-hidden"
             >
@@ -212,6 +216,47 @@ const Dashboard: React.FC<DashboardProps> = ({ child, onNavigate }) => {
             </button>
 
             <button 
+              id="dashboard-card-behavior"
+              onClick={() => onNavigate('behavior')}
+              className="group relative bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-purple-100 transition-all text-left overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 p-4 opacity-10 transition-opacity group-hover:opacity-20">
+                <Activity className="w-24 h-24 text-purple-900" />
+              </div>
+              <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center mb-6 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                <Activity className="w-6 h-6" />
+              </div>
+              <h4 className="text-xl font-black text-slate-900 mb-2">Behavior Log</h4>
+              <p className="text-slate-500 text-sm leading-relaxed mb-6">
+                Track ABC data (Antecedent, Behavior, Consequence) to identify triggers.
+              </p>
+              <div className="flex items-center gap-2 text-purple-600 font-bold text-sm">
+                Log Incident <ChevronRight className="w-4 h-4" />
+              </div>
+            </button>
+
+             <button 
+              id="dashboard-card-letters"
+              onClick={() => onNavigate('letters')}
+              className="group relative bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-amber-100 transition-all text-left overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 p-4 opacity-10 transition-opacity group-hover:opacity-20">
+                <PenTool className="w-24 h-24 text-amber-900" />
+              </div>
+              <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mb-6 text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                <PenTool className="w-6 h-6" />
+              </div>
+              <h4 className="text-xl font-black text-slate-900 mb-2">Letter Writer</h4>
+              <p className="text-slate-500 text-sm leading-relaxed mb-6">
+                Generate formal, legally-sound letters for requests and disputes instantly.
+              </p>
+              <div className="flex items-center gap-2 text-amber-600 font-bold text-sm">
+                Draft New Letter <ChevronRight className="w-4 h-4" />
+              </div>
+            </button>
+
+            <button 
+              id="dashboard-card-comms"
               onClick={() => onNavigate('comms')}
               className="group relative bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-blue-100 transition-all text-left overflow-hidden"
             >
@@ -221,7 +266,7 @@ const Dashboard: React.FC<DashboardProps> = ({ child, onNavigate }) => {
               <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                 <Activity className="w-6 h-6" />
               </div>
-              <h4 className="text-xl font-black text-slate-900 mb-2">Communication Log</h4>
+              <h4 className="text-xl font-black text-slate-900 mb-2">Contact Log</h4>
               <p className="text-slate-500 text-sm leading-relaxed mb-6">
                 The "Paper Trail" is your best defense. Record every call, email, and meeting.
               </p>

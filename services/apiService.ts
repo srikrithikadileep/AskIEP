@@ -1,50 +1,35 @@
 
-import { ChildProfile, IepAnalysis, ComplianceLog, GoalProgress, CommLogEntry, IepDocument } from '../types';
-import { analyzeIEPDirect, getMeetingSimulationDirect, compareIEPsDirect, generateConcernLetterDirect, reviseConcernLetterDirect } from './geminiService';
+import { ChildProfile, IepAnalysis, ComplianceLog, GoalProgress, CommLogEntry, IepDocument, BehaviorLog, LetterDraft } from '../types';
+import { analyzeIEPDirect, getMeetingSimulationDirect, generateLetterDirect, refineTextDirect } from './geminiService';
 
 const API_BASE = '/api';
-const FAST_TIMEOUT = 3000;
+const FAST_TIMEOUT = 5000;
+const HEALTH_TIMEOUT = 2000; // Even faster timeout for health checks
+const MAX_RETRIES = 2;
 
-const LS_KEYS = {
-  PROFILE: 'askiep_profile_v2',
-  COMPLIANCE: 'askiep_compliance_v2',
-  PROGRESS: 'askiep_progress_v2',
-  COMMS: 'askiep_comms_v2',
-  ANALYSES: 'askiep_analyses_v2',
-  DOCUMENTS: 'askiep_documents_v2'
-};
+async function wait(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-const localDB = {
-  get: (key: string) => {
-    try {
-      const data = localStorage.getItem(key);
-      return data ? JSON.parse(data) : null;
-    } catch (e) { return null; }
-  },
-  set: (key: string, value: any) => {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
-  },
-  add: (key: string, item: any) => {
-    const current = localDB.get(key) || [];
-    const newItem = { 
-      ...item, 
-      id: item.id || Math.random().toString(36).substr(2, 9), 
-      created_at: item.created_at || new Date().toISOString() 
-    };
-    localDB.set(key, [newItem, ...current]);
-    return newItem;
-  }
-};
-
-async function fetchWithTimeout(resource: string, options: RequestInit = {}) {
+async function fetchWithRetry(resource: string, options: RequestInit = {}, customTimeout = FAST_TIMEOUT, retries = MAX_RETRIES): Promise<Response> {
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), FAST_TIMEOUT);
+  const timeoutId = setTimeout(() => controller.abort(), customTimeout);
+  
   try {
     const response = await fetch(resource, { ...options, signal: controller.signal });
-    clearTimeout(id);
+    clearTimeout(timeoutId);
+    
+    // Only retry on 5xx errors or network failures
+    if (!response.ok && response.status >= 500 && retries > 0) {
+      console.warn(`API Error ${response.status}. Retrying... (${retries} left)`);
+      await wait(Math.pow(2, MAX_RETRIES - retries + 1) * 300);
+      return fetchWithRetry(resource, options, customTimeout, retries - 1);
+    }
     return response;
   } catch (error) {
-    clearTimeout(id);
+    clearTimeout(timeoutId);
+    if (retries > 0) {
+      await wait(Math.pow(2, MAX_RETRIES - retries + 1) * 300);
+      return fetchWithRetry(resource, options, customTimeout, retries - 1);
+    }
     throw error;
   }
 }
@@ -54,7 +39,7 @@ export const api = {
 
   async checkHealth(): Promise<boolean> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/health`);
+      const res = await fetchWithRetry(`${API_BASE}/health`, {}, HEALTH_TIMEOUT, 1);
       this.isOffline = !res.ok;
       return res.ok;
     } catch (e) {
@@ -64,162 +49,150 @@ export const api = {
   },
 
   async getProfile(): Promise<ChildProfile | null> {
+    if (this.isOffline) return JSON.parse(localStorage.getItem('askiep_profile_v2') || 'null');
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/profile`);
-      if (!res.ok) throw new Error();
+      const res = await fetchWithRetry(`${API_BASE}/profile`);
       const profile = await res.json();
-      if (profile) localDB.set(LS_KEYS.PROFILE, profile);
+      if (profile) localStorage.setItem('askiep_profile_v2', JSON.stringify(profile));
       return profile;
-    } catch (e) {
-      return localDB.get(LS_KEYS.PROFILE);
+    } catch (e) { 
+      return JSON.parse(localStorage.getItem('askiep_profile_v2') || 'null'); 
     }
   },
 
   async saveProfile(profile: Partial<ChildProfile>): Promise<ChildProfile> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/profile`, {
+      if (this.isOffline) throw new Error("Offline mode");
+      const res = await fetchWithRetry(`${API_BASE}/profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(profile)
       });
-      if (!res.ok) throw new Error();
       const saved = await res.json();
-      localDB.set(LS_KEYS.PROFILE, saved);
+      localStorage.setItem('askiep_profile_v2', JSON.stringify(saved));
       return saved;
     } catch (e) {
-      const local = { ...profile, id: profile.id || 'local-id' } as ChildProfile;
-      localDB.set(LS_KEYS.PROFILE, local);
-      return local;
+      const fallback = { ...profile, id: profile.id || 'local-' + Date.now() } as ChildProfile;
+      localStorage.setItem('askiep_profile_v2', JSON.stringify(fallback));
+      return fallback;
     }
   },
 
   async getDocuments(childId: string): Promise<IepDocument[]> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/documents/${childId}`);
-      if (!res.ok) throw new Error();
+      const res = await fetchWithRetry(`${API_BASE}/documents/${childId}`);
       return await res.json();
-    } catch (e) {
-      return localDB.get(LS_KEYS.DOCUMENTS) || [];
-    }
+    } catch (e) { return []; }
+  },
+
+  async getLatestAnalysis(childId: string): Promise<IepAnalysis | null> {
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/analysis/latest/${childId}`);
+      return await res.json();
+    } catch (e) { return null; }
   },
 
   async getComplianceLogs(childId: string): Promise<ComplianceLog[]> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/compliance/${childId}`);
-      if (!res.ok) throw new Error();
+      const res = await fetchWithRetry(`${API_BASE}/compliance/${childId}`);
       return await res.json();
-    } catch (e) {
-      return localDB.get(LS_KEYS.COMPLIANCE) || [];
-    }
+    } catch (e) { return []; }
   },
 
   async addComplianceLog(log: any): Promise<ComplianceLog> {
-    try {
-      const res = await fetchWithTimeout(`${API_BASE}/compliance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(log)
-      });
-      if (!res.ok) throw new Error();
-      return await res.json();
-    } catch (e) {
-      return localDB.add(LS_KEYS.COMPLIANCE, log);
-    }
+    const res = await fetchWithRetry(`${API_BASE}/compliance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(log)
+    });
+    return await res.json();
   },
 
   async getGoalProgress(childId: string): Promise<GoalProgress[]> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/progress/${childId}`);
-      if (!res.ok) throw new Error();
+      const res = await fetchWithRetry(`${API_BASE}/progress/${childId}`);
       return await res.json();
-    } catch (e) {
-      return localDB.get(LS_KEYS.PROGRESS) || [];
-    }
+    } catch (e) { return []; }
   },
 
   async addGoalProgress(progress: any): Promise<GoalProgress> {
-    try {
-      const res = await fetchWithTimeout(`${API_BASE}/progress`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(progress)
-      });
-      if (!res.ok) throw new Error();
-      return await res.json();
-    } catch (e) {
-      return localDB.add(LS_KEYS.PROGRESS, progress);
-    }
+    const res = await fetchWithRetry(`${API_BASE}/progress`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(progress)
+    });
+    return await res.json();
   },
 
   async getCommLogs(childId: string): Promise<CommLogEntry[]> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/comms/${childId}`);
-      if (!res.ok) throw new Error();
+      const res = await fetchWithRetry(`${API_BASE}/comms/${childId}`);
       return await res.json();
-    } catch (e) {
-      return localDB.get(LS_KEYS.COMMS) || [];
-    }
+    } catch (e) { return []; }
   },
 
   async addCommLog(log: any): Promise<CommLogEntry> {
+    const res = await fetchWithRetry(`${API_BASE}/comms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(log)
+    });
+    return await res.json();
+  },
+
+  async getBehaviorLogs(childId: string): Promise<BehaviorLog[]> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/comms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(log)
-      });
-      if (!res.ok) throw new Error();
+      const res = await fetchWithRetry(`${API_BASE}/behavior/${childId}`);
       return await res.json();
-    } catch (e) {
-      return localDB.add(LS_KEYS.COMMS, log);
-    }
+    } catch (e) { return []; }
+  },
+
+  async addBehaviorLog(log: any): Promise<BehaviorLog> {
+    const res = await fetchWithRetry(`${API_BASE}/behavior`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(log)
+    });
+    return await res.json();
+  },
+
+  async getLetters(childId: string): Promise<LetterDraft[]> {
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/letters/${childId}`);
+      return await res.json();
+    } catch (e) { return []; }
+  },
+
+  async saveLetter(draft: any): Promise<LetterDraft> {
+    const res = await fetchWithRetry(`${API_BASE}/letters`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(draft)
+    });
+    return await res.json();
   },
 
   async analyzeIEP(text: string, childId: string, filename?: string): Promise<IepAnalysis> {
-    try {
-      const result = await analyzeIEPDirect(text);
-      localDB.add(LS_KEYS.ANALYSES, { ...result, child_id: childId });
-      
-      if (filename) {
-        localDB.add(LS_KEYS.DOCUMENTS, { 
-          child_id: childId, 
-          filename, 
-          content: text,
-          created_at: new Date().toISOString() 
-        });
-      }
-
+    const result = await analyzeIEPDirect(text);
+    if (!this.isOffline) {
       fetch(`${API_BASE}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, childId, filename })
-      }).catch(() => {});
-
-      return result;
-    } catch (e) {
-      console.error("Analysis Pipeline Failed:", e);
-      throw e;
+      }).catch(err => console.error("Cloud sync of analysis failed", err));
     }
-  },
-
-  async compareIEPs(oldText: string, newText: string) {
-    return await compareIEPsDirect(oldText, newText);
-  },
-
-  async generateActionLetter(analysis: any, childName: string) {
-    return await generateConcernLetterDirect(analysis, childName);
-  },
-
-  async reviseActionLetter(currentLetter: string, instruction: string) {
-    return await reviseConcernLetterDirect(currentLetter, instruction);
+    return result;
   },
 
   async simulateMeeting(userMessage: string, childContext: string): Promise<string> {
-    try {
-      return await getMeetingSimulationDirect(userMessage, childContext);
-    } catch (e) {
-      console.error("Meeting Simulation Failed:", e);
-      return "I encountered a technical issue. Please try your message again.";
-    }
+    return await getMeetingSimulationDirect(userMessage, childContext);
+  },
+
+  async generateLetter(context: string, letterType: string): Promise<string> {
+    return await generateLetterDirect(context, letterType);
+  },
+
+  async refineLetter(text: string, instruction: string): Promise<string> {
+    return await refineTextDirect(text, instruction);
   }
 };

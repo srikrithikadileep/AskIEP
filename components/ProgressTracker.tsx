@@ -20,6 +20,8 @@ const ProgressTracker: React.FC<ProgressTrackerProps> = ({ childId }) => {
     status: 'Emerging' as GoalProgress['status']
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   useEffect(() => {
     loadProgress();
   }, [childId]);
@@ -46,14 +48,24 @@ const ProgressTracker: React.FC<ProgressTrackerProps> = ({ childId }) => {
     };
   }, [goals]);
 
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.goalName.trim()) newErrors.goalName = "Goal name is required";
+    if (!formData.currentValue.trim()) newErrors.currentValue = "Required";
+    if (!formData.targetValue.trim()) newErrors.targetValue = "Required";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.goalName) return;
+    if (!validate()) return;
     try {
       await api.addGoalProgress({ ...formData, childId });
       loadProgress();
       setShowForm(false);
       setFormData({ goalName: '', currentValue: '', targetValue: '', status: 'Emerging' });
+      setErrors({});
     } catch (e) { alert("Failed to save."); }
   };
 
@@ -147,32 +159,35 @@ const ProgressTracker: React.FC<ProgressTrackerProps> = ({ childId }) => {
               <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">IEP Goal or Milestone</label>
               <input 
                 autoFocus
-                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 font-bold"
+                className={`w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 font-bold ${errors.goalName ? 'border-rose-400 bg-rose-50' : 'border-slate-100'}`}
                 placeholder="e.g. Reads 40 words per minute"
                 value={formData.goalName}
                 onChange={e => setFormData({...formData, goalName: e.target.value})}
               />
+              {errors.goalName && <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest pl-2">{errors.goalName}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Current Score</label>
                 <input 
                   type="number"
-                  className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
+                  className={`w-full p-4 bg-slate-50 border rounded-2xl font-bold ${errors.currentValue ? 'border-rose-400 bg-rose-50' : 'border-slate-100'}`}
                   placeholder="25"
                   value={formData.currentValue}
                   onChange={e => setFormData({...formData, currentValue: e.target.value})}
                 />
+                 {errors.currentValue && <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest pl-2">{errors.currentValue}</p>}
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">IEP Target</label>
                 <input 
                   type="number"
-                  className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
+                  className={`w-full p-4 bg-slate-50 border rounded-2xl font-bold ${errors.targetValue ? 'border-rose-400 bg-rose-50' : 'border-slate-100'}`}
                   placeholder="40"
                   value={formData.targetValue}
                   onChange={e => setFormData({...formData, targetValue: e.target.value})}
                 />
+                 {errors.targetValue && <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest pl-2">{errors.targetValue}</p>}
               </div>
             </div>
           </div>
